@@ -1,0 +1,264 @@
+---
+title: "607 Project2"
+author: "Chunmei Zhu"
+date: "October 7, 2017"
+output: html_document
+---
+
+## Your task is to:
+Choose any three of the "wide" datasets identified in the Week 6 Discussion items. (You may use your own dataset; please don't use my Sample Post dataset, since that was used in your Week 6 assignment!) For each of the three chosen datasets:
+???
+(1) Create a .CSV file (or optionally, a MySQL database!) that includes all of the information included in the dataset. You're encouraged to use a "wide" structure similar to how the information appears in the discussion item, so that you can practice tidying and transformations as described below.
+???
+(2) Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data. [Most of your grade will be based on this step!]
+???
+(3) Perform the analysis requested in the discussion item.
+???
+(4) Your code should be in an R Markdown file, posted to rpubs.com, and should include narrative descriptions of your data cleanup work, analysis, and conclusions. 
+
+
+## NYC Rolling Sales - Manhattan
+
+The data source is from NYC.gov about rolling sales records of each county from September 2016 to July 2017. There are five cities in New York, including Manhattan, Broxn, Queens, Brooklyn and Statenisland.Please see the original data in the link http://www1.nyc.gov/site/finance/taxes/property-rolling-sales-data.page .
+
+First import all packages I need in the projec.
+```{r packages}
+require(tidyr)
+require(dplyr) 
+library(plyr)
+library(stringr)
+library(tidyverse)
+```
+
+###Import Data from a .csv file to a data frame "df" 
+
+```{r Import Data}
+# Import data
+manhattan <-tbl_df(read.csv('D:/CUNY_SPS_DA/607_Data_Aq/Project2/NYCRollingSales9.2016_8.2017/rollingsales_manhattan.csv', stringsAsFactors = FALSE)) 
+
+colnames(manhattan) <- as.character(unlist(manhattan[4,]))
+manhattan = manhattan[-4, ]
+
+df<- manhattan[4:nrow(manhattan),]
+tail(df,50) 
+dim(df)
+```
+
+###Data Cleaning 
+
+```{r clean Data}
+# Original raw data types 
+#str(df)
+
+# rename the table
+library(data.table)
+colnms <- c("BOROUGH", "NEIGHBORHOOD", "BUILDING_CLASS_CATEGORY", "TAX_CLASS_AT_PRESENT","BLOCK","LOT","EASE_MENT", "BUILDING_CLASS_AT_PRESENT","ADDRESS", "APARTMENT_NUMBER", "ZIP_CODE","RESIDENTIAL_UNITS","COMMERCIAL_UNITS", "TOTAL_UNITS", "LAND_SQUARE_FEET", "GROSS_SQUARE_FEET","YEAR_BUILT", "TAX_CLASS_AT_TIME_OF_SALE","BUILDING_CLASS_AT_TIME_OF_SALE","SALE_PRICE", "SALE_DATE" )
+setnames(df, colnms)
+
+#correct data types
+df$BOROUGH <-as.numeric(df$BOROUGH) 
+df$BLOCK <-as.numeric(df$BLOCK)
+df$LOT <-as.numeric(df$LOT)
+df$BLOCK <-as.numeric(df$BLOCK)
+df$RESIDENTIAL_UNITS <-as.numeric(df$RESIDENTIAL_UNITS)
+df$COMMERCIAL_UNITS <-as.numeric(df$COMMERCIAL_UNITS)
+df$TOTAL_UNITS <-as.numeric(df$TOTAL_UNITS)
+df$LAND_SQUARE_FEET <-as.numeric(gsub(",","",df$LAND_SQUARE_FEET))
+df$GROSS_SQUARE_FEET <-as.numeric(gsub(",","",df$GROSS_SQUARE_FEET))
+df$YEAR_BUILT <-as.numeric(df$YEAR_BUILT)
+df$TAX_CLASS_AT_TIME_OF_SALE <-as.numeric(df$TAX_CLASS_AT_TIME_OF_SALE)
+df$SALE_PRICE <-as.numeric(gsub(",","",df$SALE_PRICE))
+
+#check data types
+str(df)
+tail(df,50)
+```
+
+###Data Processing with dplyr & tidyr
+
+```{r proess data}
+
+mydat<- df%>% separate(BUILDING_CLASS_CATEGORY, into=c("BUILDING_CLASS_Number", "BUILDING_CLASS_CATEGORY"))
+
+#calculate unit pice per feet for each sale
+mydat2<- na.omit(mydat)%>% 
+  select(NEIGHBORHOOD,BUILDING_CLASS_Number, BUILDING_CLASS_CATEGORY, GROSS_SQUARE_FEET, SALE_PRICE)%>%
+  mutate(PRICE_PerFeet = round(SALE_PRICE/GROSS_SQUARE_FEET))%>% 
+  group_by(BUILDING_CLASS_CATEGORY)
+mydat2
+
+unique(unlist(df$BUILDING_CLASS_CATEGORY))
+condo <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="CONDO")
+condo
+
+COOP <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="COOPS")
+COOP
+
+onefamily <-mydat2%>% filter(BUILDING_CLASS_CATEGORY=="ONE")
+onefamily
+
+twofamily <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="TWO")
+twofamily
+
+threefamily <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="THREE")
+threefamily
+
+AptRent <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="RENTALS")
+AptRent
+```
+
+####Analysis residentail property price per feet
+
+```{r analysis data}
+popType <- c("COOP","CONDO","OneFamily", "TwoFamily","ThreFamily", "AptRent")
+
+mean_price <- c(mean(COOP$PRICE_PerFeet), mean(condo$PRICE_PerFeet),mean(onefamily$PRICE_PerFeet), mean(twofamily$PRICE_PerFeet),mean(threefamily$PRICE_PerFeet), mean(AptRent$PRICE_PerFeet))
+
+library ('ggplot2')
+barplot(mean_price, names.arg=popType, ylim=c(0,2500), main="Manhattan Residentail Property Sale Price (ft)", ylab="Price", xlab="Poperty Types", col="skyblue")
+
+```
+
+## NYC Population 2016
+
+The data source is from census.gov about population in New York from 2008 to 2016. Please see the original data in the link https://www.census.gov/data/datasets/2016/demo/popest/counties-detail.html
+
+####Import Data from a .csv file to a data frame "df" 
+
+```{r Import pop Data}
+# Import data
+population <-tbl_df(read.csv('D:/CUNY_SPS_DA/607_Data_Aq/Project2/NYC_Population_2016.csv', stringsAsFactors = FALSE)) 
+
+df<- population[, 5:8]
+head(df,5) 
+```
+
+####Data Processing with dplyr & tidyr
+
+```{r age data}
+unique(unlist(df$AGEGRP))
+
+ df3 <- df %>% spread(AGEGRP,TOT_POP)
+ df3 <- rename(df3,c("0"="g0" , "1"="g1","2"= "g2","3"= "g3","4"= "g4","5"= "g5","6"= "g6","7"= "g7","8"= "g8","9"= "g9","10"="g10", "11"="g11","12"= "g12","13"= "g13","14"= "g14","15"= "g15","16"= "g16","17"= "g17","18"= "g18" ))
+ 
+ ageG <- df3 %>% filter(YEAR==9)
+ 
+curAge <-c(sum(ageG$g1),sum(ageG$g2),sum(ageG$g3),sum(ageG$g4),sum(ageG$g5),sum(ageG$g6),sum(ageG$g7),sum(ageG$g8),sum(ageG$g9),sum(ageG$g10),sum(ageG$g11),sum(ageG$g12),sum(ageG$g13),sum(ageG$g14),sum(ageG$g15),sum(ageG$g16),sum(ageG$g17),sum(ageG$g18))
+
+gName <-c("g1","g2","g3","g4","g5","g6","g7","g8","g9","g10","g11","g12","g13","g14","g15","g16","g17","g18")
+
+ageStruc<-as.data.frame(gName,curAge)
+
+dim(ageStruc)
+```
+
+####Analysis New York Age Grops Size
+
+```{r age analysis data}
+# group number bigger, the age older
+ggplot(ageStruc, aes(gName,curAge ))+
+  geom_bar(stat = 'identity') +
+  theme(axis.text.x=element_text(angle=90, hjust=1))+ coord_flip()+
+  ggtitle('New York Age Grops')
+
+```
+
+```{r others}
+#If I can get more than 30 years population data,I can grow rates then can estemate the future age structures by simulation.
+```
+
+
+## NYC Rolling Sales - Brooklyn
+
+The data source is from census.gov about household income in New York. Please see the original data in the link https://www.census.gov/data/tables/time-series/demo/income-poverty/cps-hinc/hinc-01.html.
+
+###Import Data from a .csv file to a data frame "df" 
+
+```{r Import brooklyn Data}
+# Import data
+brooklyn <-tbl_df(read.csv('D:/CUNY_SPS_DA/607_Data_Aq/Project2/NYCRollingSales9.2016_8.2017/rollingsales_brooklyn.csv', stringsAsFactors = FALSE)) 
+
+colnames(brooklyn) <- as.character(unlist(brooklyn[4,]))
+brooklyn = brooklyn[-4, ]
+
+df<- brooklyn[4:nrow(brooklyn),]
+tail(df,50) 
+dim(df)
+```
+
+###Data Cleaning 
+
+```{r clean brooklyn Data}
+# Original raw data types 
+#str(df)
+
+# rename the table
+library(data.table)
+colnms <- c("BOROUGH", "NEIGHBORHOOD", "BUILDING_CLASS_CATEGORY", "TAX_CLASS_AT_PRESENT","BLOCK","LOT","EASE_MENT", "BUILDING_CLASS_AT_PRESENT","ADDRESS", "APARTMENT_NUMBER", "ZIP_CODE","RESIDENTIAL_UNITS","COMMERCIAL_UNITS", "TOTAL_UNITS", "LAND_SQUARE_FEET", "GROSS_SQUARE_FEET","YEAR_BUILT", "TAX_CLASS_AT_TIME_OF_SALE","BUILDING_CLASS_AT_TIME_OF_SALE","SALE_PRICE", "SALE_DATE" )
+setnames(df, colnms)
+
+#correct data types
+df$BOROUGH <-as.numeric(df$BOROUGH) 
+df$BLOCK <-as.numeric(df$BLOCK)
+df$LOT <-as.numeric(df$LOT)
+df$BLOCK <-as.numeric(df$BLOCK)
+df$RESIDENTIAL_UNITS <-as.numeric(df$RESIDENTIAL_UNITS)
+df$COMMERCIAL_UNITS <-as.numeric(df$COMMERCIAL_UNITS)
+df$TOTAL_UNITS <-as.numeric(df$TOTAL_UNITS)
+df$LAND_SQUARE_FEET <-as.numeric(gsub(",","",df$LAND_SQUARE_FEET))
+df$GROSS_SQUARE_FEET <-as.numeric(gsub(",","",df$GROSS_SQUARE_FEET))
+df$YEAR_BUILT <-as.numeric(df$YEAR_BUILT)
+df$TAX_CLASS_AT_TIME_OF_SALE <-as.numeric(df$TAX_CLASS_AT_TIME_OF_SALE)
+df$SALE_PRICE <-as.numeric(gsub(",","",df$SALE_PRICE))
+
+#check data types
+str(df)
+tail(df,50)
+```
+
+###Data Processing with dplyr & tidyr
+
+```{r proess brooklyn data}
+
+mydat<- df%>% separate(BUILDING_CLASS_CATEGORY, into=c("BUILDING_CLASS_Number", "BUILDING_CLASS_CATEGORY"))
+
+#calculate unit pice per feet for each sale
+mydat2<- na.omit(mydat)%>% 
+  select(NEIGHBORHOOD,BUILDING_CLASS_Number, BUILDING_CLASS_CATEGORY, GROSS_SQUARE_FEET, SALE_PRICE)%>%
+  mutate(PRICE_PerFeet = round(SALE_PRICE/GROSS_SQUARE_FEET))%>% 
+  group_by(BUILDING_CLASS_CATEGORY)
+mydat2
+
+unique(unlist(df$BUILDING_CLASS_CATEGORY))
+
+#This is a wrong value and won't be in the analysis.
+condo <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="CONDO")
+condo
+
+COOP <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="COOPS")
+COOP
+
+onefamily <-mydat2%>% filter(BUILDING_CLASS_CATEGORY=="ONE")
+onefamily
+
+twofamily <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="TWO")
+twofamily
+
+threefamily <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="THREE")
+threefamily
+
+AptRent <- mydat2%>% filter(BUILDING_CLASS_CATEGORY=="RENTALS")
+AptRent
+```
+
+####Analysis residentail property price per feet
+
+```{r analysis brooklyn data}
+popType <- c("COOP","OneFamily", "TwoFamily","ThreFamily", "AptRent")
+
+mean_price <- c(mean(COOP$PRICE_PerFeet),mean(onefamily$PRICE_PerFeet), mean(twofamily$PRICE_PerFeet),mean(threefamily$PRICE_PerFeet), mean(AptRent$PRICE_PerFeet))
+
+library ('ggplot2')
+barplot(mean_price, names.arg=popType, ylim=c(0,1000), main="Brooklyn Residentail Property Sale Price (ft)", ylab="Price", xlab="Poperty Types", col="red")
+
+```
